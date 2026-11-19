@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Maze Solver — Grover Q-RL vs A* vs Dijkstra</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Exo+2:wght@300;500;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#04060e;--surf:#080d18;--card:#0c1220;--bord:#162030;
+  --q:#00d4ff;--g:#00ff9d;--a:#ffb830;--d:#b06aff;--r:#ff4d6d;
+  --txt:#cce4f0;--muted:#4a6a80;
+  --mono:'JetBrains Mono',monospace;--sans:'Exo 2',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-weight:300;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,212,255,.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,212,255,.03) 1px,transparent 1px);
+  background-size:32px 32px;pointer-events:none;z-index:0;}
+
+/* ── HEADER ── */
+header{position:relative;z-index:1;padding:2rem 2rem 1rem;
+  border-bottom:1px solid var(--bord);background:var(--surf);}
+.hdr{max-width:1400px;margin:0 auto;display:flex;align-items:flex-end;
+  justify-content:space-between;flex-wrap:wrap;gap:1rem;}
+.logo{font-family:var(--mono);font-size:.58rem;letter-spacing:.2em;color:var(--q);margin-bottom:.4rem;}
+h1{font-size:clamp(1.5rem,3vw,2.4rem);font-weight:700;letter-spacing:-.02em;}
+h1 em{color:var(--q);font-style:normal;}
+.sub{font-family:var(--mono);font-size:.65rem;color:var(--muted);margin-top:.3rem;}
+.badges{display:flex;gap:.4rem;flex-wrap:wrap;}
+.bdg{font-family:var(--mono);font-size:.58rem;letter-spacing:.1em;
+  padding:.2rem .6rem;border:1px solid;border-radius:2px;}
+.bdg-q{color:var(--q);border-color:var(--q);}
+.bdg-a{color:var(--a);border-color:var(--a);}
+.bdg-d{color:var(--d);border-color:var(--d);}
+.bdg-g{color:var(--g);border-color:var(--g);}
+
+/* ── TABS ── */
+.tabs{display:flex;background:var(--surf);border-bottom:1px solid var(--bord);
+  position:relative;z-index:1;overflow-x:auto;}
+.tab{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;
+  padding:.75rem 1.4rem;color:var(--muted);cursor:pointer;border:none;
+  background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.tab:hover{color:var(--txt);}
+.tab.active{color:var(--q);border-bottom-color:var(--q);}
+
+main{max-width:1400px;margin:0 auto;padding:1.5rem 1rem 4rem;
+  position:relative;z-index:1;}
+.panel{display:none;}.panel.active{display:block;}
+
+/* ── LAYOUT ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;}
+@media(max-width:900px){.g2,.g3,.g4{grid-template-columns:1fr 1fr;}}
+@media(max-width:600px){.g2,.g3,.g4{grid-template-columns:1fr;}}
+
+/* ── CARD ── */
+.card{background:var(--card);border:1px solid var(--bord);border-radius:6px;
+  padding:1.2rem;position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--q),transparent);opacity:.3;}
+.card-title{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;
+  color:var(--q);margin-bottom:.8rem;text-transform:uppercase;}
+
+/* ── STATS ── */
+.stats{display:flex;gap:.6rem;flex-wrap:wrap;margin:.8rem 0;}
+.stat{background:var(--surf);border:1px solid var(--bord);border-radius:4px;
+  padding:.45rem .8rem;min-width:72px;}
+.stat .v{font-family:var(--mono);font-size:1rem;font-weight:600;
+  color:var(--q);display:block;line-height:1.2;}
+.stat .l{font-family:var(--mono);font-size:.58rem;color:var(--muted);}
+.stat.g .v{color:var(--g);}
+.stat.a .v{color:var(--a);}
+.stat.d .v{color:var(--d);}
+.stat.r .v{color:var(--r);}
+
+/* ── CONTROLS ── */
+.ctrl-row{display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end;margin:.8rem 0;}
+.ctrl{display:flex;flex-direction:column;gap:.3rem;}
+.ctrl label{font-family:var(--mono);font-size:.6rem;letter-spacing:.08em;color:var(--muted);}
+.ctrl select,.ctrl input[type=number]{
+  background:var(--surf);border:1px solid var(--bord);color:var(--txt);
+  font-family:var(--mono);font-size:.72rem;padding:.32rem .6rem;border-radius:3px;outline:none;}
+.ctrl select:focus,.ctrl input:focus{border-color:var(--q);}
+.ctrl input[type=range]{accent-color:var(--q);width:110px;}
+.vlbl{font-family:var(--mono);font-size:.66rem;color:var(--q);
+  align-self:flex-end;padding-bottom:.1rem;min-width:34px;}
+
+/* ── BUTTONS ── */
+.btn{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;
+  padding:.48rem 1.2rem;border:none;border-radius:3px;cursor:pointer;transition:all .15s;}
+.btn-p{background:var(--q);color:#000;font-weight:600;}
+.btn-g{background:transparent;border:1px solid var(--g);color:var(--g);}
+.btn-a{background:transparent;border:1px solid var(--a);color:var(--a);}
+.btn-r{background:transparent;border:1px solid var(--r);color:var(--r);}
+.btn:hover{opacity:.8;}.btn:disabled{opacity:.3;cursor:not-allowed;}
+
+/* ── MAZE CANVAS ── */
+.maze-wrap{display:flex;flex-direction:column;align-items:center;gap:.5rem;}
+canvas.maze{border:1px solid var(--bord);border-radius:4px;image-rendering:pixelated;}
+
+/* ── PROGRESS ── */
+.prog{height:2px;background:var(--bord);border-radius:1px;margin:.5rem 0;}
+.prog-fill{height:100%;background:var(--q);border-radius:1px;transition:width .3s;}
+
+/* ── CONSOLE ── */
+.console{background:#020408;border:1px solid var(--bord);border-radius:4px;
+  padding:.8rem 1rem;font-family:var(--mono);font-size:.67rem;line-height:1.85;
+  min-height:90px;max-height:180px;overflow-y:auto;color:var(--g);white-space:pre-wrap;}
+.console .err{color:var(--r);}
+.console .dim{color:var(--muted);}
+.console .hi{color:var(--a);}
+.console .qc{color:var(--q);}
+
+/* ── CHART ── */
+.chart-wrap{background:#030508;border:1px solid var(--bord);
+  border-radius:4px;padding:.8rem;margin-top:.6rem;}
+
+/* ── QCA CANVAS ── */
+#qca-canvas{border-radius:4px;display:block;margin:0 auto;max-width:100%;height:auto;}
+
+/* ── LEGEND ROW ── */
+.legend{display:flex;gap:1rem;flex-wrap:wrap;margin:.6rem 0;
+  font-family:var(--mono);font-size:.65rem;}
+.leg-item{display:flex;align-items:center;gap:.4rem;}
+.leg-dot{width:10px;height:10px;border-radius:2px;}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.card{animation:fadeIn .3s ease both;}
+</style>
+</head>
+<body>
+
+<header>
+<div class="hdr">
+  <div>
+    <div class="logo">quantum reinforcement learning · pathfinding</div>
+    <h1>Maze Solver <em>Grover Q-RL</em> vs A* vs Dijkstra</h1>
+    <div class="sub">20×20 complex maze · live path animation · QCA gate formation · timing benchmark</div>
+  </div>
+  <div class="badges">
+    <span class="bdg bdg-q">Grover Q-Learning</span>
+    <span class="bdg bdg-a">A* Search</span>
+    <span class="bdg bdg-d">Dijkstra</span>
+    <span class="bdg bdg-g">QCA Circuit</span>
+  </div>
+</div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('solver')">Live solver</button>
+  <button class="tab" onclick="switchTab('compare')">Path comparison</button>
+  <button class="tab" onclick="switchTab('qca')">QCA circuit</button>
+  <button class="tab" onclick="switchTab('timing')">Timing & metrics</button>
+  <button class="tab" onclick="switchTab('code')">Python code</button>
+</div>
+
+<main>
+
+<!-- ══════════════ SOLVER ══════════════ -->
+<div id="panel-solver" class="panel active">
+  <div class="g2">
+    <!-- LEFT: controls -->
+    <div class="card">
+      <div class="card-title">Algorithm config</div>
+      <div class="ctrl-row">
+        <div class="ctrl"><label>Algorithm</label>
+          <select id="sel-algo">
+            <option value="grover">Grover Q-Learning</option>
+            <option value="astar">A* Search</option>
+            <option value="dijkstra">Dijkstra</option>
+            <option value="all">Run all 3</option>
+          </select>
+        </div>
+        <div class="ctrl"><label>Episodes (Q-RL)</label>
+          <input type="number" id="inp-ep" value="400" min="50" max="2000" style="width:80px"/>
+        </div>
+        <div class="ctrl"><label>α (learning rate)</label>
+          <input type="range" id="inp-alpha" min="1" max="20" value="7"
+            oninput="document.getElementById('lbl-alpha').textContent=(this.value/100).toFixed(2)"/>
+        </div>
+        <span class="vlbl" id="lbl-alpha">0.07</span>
+        <div class="ctrl"><label>γ (discount)</label>
+          <input type="range" id="inp-gamma" min="80" max="99" value="95"
+            oninput="document.getElementById('lbl-gamma').textContent=(this.value/100).toFixed(2)"/>
+        </div>
+        <span class="vlbl" id="lbl-gamma">0.95</span>
+        <div class="ctrl"><label>Grover iters</label>
+          <input type="range" id="inp-gi" min="1" max="4" value="1"
+            oninput="document.getElementById('lbl-gi').textContent=this.value"/>
+        </div>
+        <span class="vlbl" id="lbl-gi">1</span>
+        <div class="ctrl"><label>Anim speed</label>
+          <select id="sel-speed">
+            <option value="80">Slow</option>
+            <option value="30" selected>Normal</option>
+            <option value="8">Fast</option>
+            <option value="1">Instant</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.3rem">
+        <button class="btn btn-p" id="btn-run"   onclick="runSolver()">Run solver</button>
+        <button class="btn btn-a" id="btn-anim"  onclick="animatePath()" disabled>Animate path</button>
+        <button class="btn btn-r" id="btn-reset" onclick="resetAll()">Reset</button>
+      </div>
+      <div class="prog"><div class="prog-fill" id="prog-bar" style="width:0%"></div></div>
+      <div class="stats">
+        <div class="stat">  <span class="v" id="st-ep">0</span><span class="l">episode</span></div>
+        <div class="stat g"><span class="v" id="st-rw">—</span><span class="l">avg reward</span></div>
+        <div class="stat a"><span class="v" id="st-best">—</span><span class="l">best reward</span></div>
+        <div class="stat d"><span class="v" id="st-steps">—</span><span class="l">path steps</span></div>
+        <div class="stat r"><span class="v" id="st-time">—</span><span class="l">time (ms)</span></div>
+        <div class="stat g"><span class="v" id="st-sr">—</span><span class="l">success %</span></div>
+      </div>
+      <div class="card-title" style="margin-top:.6rem">Console</div>
+      <div class="console" id="main-console">Ready. Select algorithm and press Run.</div>
+    </div>
+
+    <!-- RIGHT: maze canvas -->
+    <div class="card">
+      <div class="card-title">Maze — 20×20</div>
+      <div class="legend">
+        <div class="leg-item"><div class="leg-dot" style="background:#00ff9d"></div>Start</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#ff4d6d"></div>Goal</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#1c3a50"></div>Wall</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#00d4ff"></div>Grover path</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#ffb830"></div>A* path</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#b06aff"></div>Dijkstra path</div>
+      </div>
+      <div class="maze-wrap">
+        <canvas id="maze-canvas" class="maze" width="400" height="400"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <div class="card-title">Reward curve (Grover Q-Learning)</div>
+    <div class="chart-wrap"><canvas id="reward-chart" height="160"></canvas></div>
+  </div>
+</div>
+
+<!-- ══════════════ COMPARE ══════════════ -->
+<div id="panel-compare" class="panel">
+  <div class="card" style="margin-bottom:1rem">
+    <div class="card-title">Run all 3 algorithms then view here</div>
+    <button class="btn btn-p" onclick="runAllAndCompare()">Run all 3 now</button>
+    <div class="prog" style="margin-top:.6rem"><div class="prog-fill" id="cmp-prog" style="width:0%"></div></div>
+  </div>
+  <div class="g3" id="compare-mazes">
+    <div class="card"><div class="card-title" style="color:var(--q)">Grover Q-RL</div>
+      <canvas id="cmp-q" class="maze" width="300" height="300"></canvas>
+      <div class="stats" style="margin-top:.6rem">
+        <div class="stat"><span class="v" id="cq-steps">—</span><span class="l">steps</span></div>
+        <div class="stat r"><span class="v" id="cq-time">—</span><span class="l">ms</span></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title" style="color:var(--a)">A* Search</div>
+      <canvas id="cmp-a" class="maze" width="300" height="300"></canvas>
+      <div class="stats" style="margin-top:.6rem">
+        <div class="stat"><span class="v" id="ca-steps">—</span><span class="l">steps</span></div>
+        <div class="stat r"><span class="v" id="ca-time">—</span><span class="l">ms</span></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title" style="color:var(--d)">Dijkstra</div>
+      <canvas id="cmp-d" class="maze" width="300" height="300"></canvas>
+      <div class="stats" style="margin-top:.6rem">
+        <div class="stat"><span class="v" id="cd-steps">—</span><span class="l">steps</span></div>
+        <div class="stat r"><span class="v" id="cd-time">—</span><span class="l">ms</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ QCA ══════════════ -->
+<div id="panel-qca" class="panel">
+  <div class="card">
+    <div class="card-title">Circuit diagram</div>
+    <canvas id="qca-canvas" width="860" height="200"></canvas>
+  </div>
+</div>
+
+<!-- ══════════════ TIMING ══════════════ -->
+<div id="panel-timing" class="panel">
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">Time comparison</div>
+      <div class="chart-wrap"><canvas id="time-chart" height="260"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Path length comparison</div>
+      <div class="chart-wrap"><canvas id="steps-chart" height="260"></canvas></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <div class="card-title">Algorithm comparison table</div>
+    <div id="cmp-table" style="font-family:var(--mono);font-size:.75rem;color:var(--muted);padding:.5rem">
+      Run all algorithms to populate this table.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ CODE ══════════════ -->
+<div id="panel-code" class="panel">
+  <div class="card">
+    <div class="card-title">Run in your compiler / terminal</div>
+    <div style="background:#020408;border:1px solid var(--bord);border-radius:4px;
+      padding:1rem 1.2rem;overflow-x:auto;font-family:var(--mono);font-size:.7rem;
+      line-height:1.85;color:#9fb8d8;">
+<pre
+><span style="color:var(--muted)"># ─── INSTALL ───────────────────────────────────</span>
+pip install pennylane numpy matplotlib
+
+<span style="color:var(--muted)"># ─── RUN (all 3 algorithms) ──────────────────</span>
+python maze_grover_qlearning.py
+
+<span style="color:var(--muted)"># ─── OUTPUTS GENERATED ───────────────────────</span>
+<span style="color:var(--g)">maze_results.png</span>      <span style="color:var(--muted)"># side-by-side path viz + reward curve + timing</span>
+<span style="color:var(--g)">maze_qca_circuit.png</span>  <span style="color:var(--muted)"># QCA gate formation + amplitude bars</span>
+
+<span style="color:var(--muted)"># ─── ALGORITHM DETAILS ───────────────────────</span>
+<span style="color:var(--q)">Grover Q-Learning</span>:  Q-table + Grover amplitude amplification
+                    Oracle marks best Q-action, diffusion amplifies
+                    √N quantum speedup over random action selection
+
+<span style="color:var(--a)">A* Search</span>:          Heuristic = Manhattan distance to goal
+                    Optimal path · O((V+E) log V) complexity
+                    Finds shortest path guaranteed
+
+<span style="color:var(--d)">Dijkstra</span>:           Uniform-cost search, no heuristic
+                    Also optimal · slower than A* on this maze</pre>
+    </div>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <div class="card-title">Core Grover circuit (Python)</div>
+    <div style="background:#020408;border:1px solid var(--bord);border-radius:4px;
+      padding:1rem 1.2rem;overflow-x:auto;font-family:var(--mono);font-size:.7rem;
+      line-height:1.85;color:#9fb8d8;">
+<pre
+><span style="color:var(--q)">import</span> pennylane <span style="color:var(--q)">as</span> qml
+<span style="color:var(--q)">import</span> numpy <span style="color:var(--q)">as</span> np
+
+dev = qml.<span style="color:var(--g)">device</span>(<span style="color:#c3e88d">"default.qubit"</span>, wires=<span style="color:var(--a)">2</span>)  <span style="color:var(--muted)"># 2 qubits → 4 actions</span>
+
+<span style="color:var(--q)">def</span> <span style="color:var(--g)">grover_oracle</span>(best_action, n_qubits):
+    bits = [(best_action >> i) & <span style="color:var(--a)">1</span> <span style="color:var(--q)">for</span> i <span style="color:var(--q)">in</span> range(n_qubits)]
+    <span style="color:var(--q)">for</span> i, b <span style="color:var(--q)">in</span> enumerate(bits):
+        <span style="color:var(--q)">if</span> b == <span style="color:var(--a)">0</span>: qml.<span style="color:var(--g)">PauliX</span>(wires=i)
+    qml.<span style="color:var(--g)">ctrl</span>(qml.PauliZ, control=list(range(n_qubits-<span style="color:var(--a)">1</span>)))(wires=n_qubits-<span style="color:var(--a)">1</span>)
+    <span style="color:var(--q)">for</span> i, b <span style="color:var(--q)">in</span> enumerate(bits):
+        <span style="color:var(--q)">if</span> b == <span style="color:var(--a)">0</span>: qml.<span style="color:var(--g)">PauliX</span>(wires=i)
+
+<span style="color:var(--q)">def</span> <span style="color:var(--g)">diffusion</span>(n_qubits):
+    <span style="color:var(--q)">for</span> w <span style="color:var(--q)">in</span> range(n_qubits): qml.<span style="color:var(--g)">Hadamard</span>(wires=w); qml.<span style="color:var(--g)">PauliX</span>(wires=w)
+    qml.<span style="color:var(--g)">ctrl</span>(qml.PauliZ, control=list(range(n_qubits-<span style="color:var(--a)">1</span>)))(wires=n_qubits-<span style="color:var(--a)">1</span>)
+    <span style="color:var(--q)">for</span> w <span style="color:var(--q)">in</span> range(n_qubits): qml.<span style="color:var(--g)">PauliX</span>(wires=w); qml.<span style="color:var(--g)">Hadamard</span>(wires=w)
+
+<span style="color:var(--a)">@</span>qml.<span style="color:var(--g)">qnode</span>(dev)
+<span style="color:var(--q)">def</span> <span style="color:var(--g)">grover_circuit</span>(best_action, n_iter):
+    <span style="color:var(--q)">for</span> w <span style="color:var(--q)">in</span> range(<span style="color:var(--a)">2</span>): qml.<span style="color:var(--g)">Hadamard</span>(wires=w)
+    <span style="color:var(--q)">for</span> _ <span style="color:var(--q)">in</span> range(n_iter):
+        <span style="color:var(--g)">grover_oracle</span>(best_action, <span style="color:var(--a)">2</span>)
+        <span style="color:var(--g)">diffusion</span>(<span style="color:var(--a)">2</span>)
+    <span style="color:var(--q)">return</span> qml.<span style="color:var(--g)">probs</span>(wires=range(<span style="color:var(--a)">2</span>))</pre>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+// ══════════════════════════════════════════════
+// MAZE DEFINITION (20×20)
+// ══════════════════════════════════════════════
+const MAZE=[
+  [0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0],
+  [0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+  [0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1],
+  [1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1],
+  [0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0],
+  [1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,0],
+  [0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0],
+  [0,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,0,1,1,1],
+  [0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,0,1],
+  [0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0],
+  [1,1,1,1,0,1,1,1,1,1,1,1,0,1,0,1,0,1,1,1],
+  [0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,1],
+  [0,1,0,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,0,1],
+  [0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],
+  [0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0],
+  [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0],
+  [1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1,0],
+];
+const ROWS=20,COLS=20;
+const START=[0,0],GOAL=[19,19];
+const ACTIONS=[[-1,0],[1,0],[0,-1],[0,1]];
+const ALBL=['↑','↓','←','→'];
+
+function validNbrs(r,c){
+  return ACTIONS.map((a,i)=>[i,r+a[0],c+a[1]])
+    .filter(([,nr,nc])=>nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&MAZE[nr][nc]===0);
+}
+
+// ══════════════════════════════════════════════
+// GROVER PROBABILITY (browser simulation)
+// ══════════════════════════════════════════════
+function groverProbs(bestA,N,k){
+  const theta=Math.asin(1/Math.sqrt(N));
+  const pb=Math.sin((2*k+1)*theta)**2;
+  const po=(1-pb)/(N-1);
+  return Array.from({length:N},(_,i)=>i===bestA?pb:po);
+}
+
+function groverSelect(qVals,explore,gIters){
+  const N=4;
+  const bestA=qVals.indexOf(Math.max(...qVals));
+  const probs=groverProbs(bestA,N,gIters);
+  if(explore){
+    let r=Math.random(),cum=0,action=N-1;
+    for(let i=0;i<N;i++){cum+=probs[i];if(r<cum){action=i;break;}}
+    return[action,probs];
+  }
+  return[probs.indexOf(Math.max(...probs)),probs];
+}
+
+// ══════════════════════════════════════════════
+// A* SEARCH
+// ══════════════════════════════════════════════
+function runAstar(){
+  const t0=performance.now();
+  const h=(r,c)=>Math.abs(r-GOAL[0])+Math.abs(c-GOAL[1]);
+  const open=[[h(0,0),0,'0,0',[[0,0]]]];
+  const vis=new Set();
+  while(open.length){
+    open.sort((a,b)=>a[0]-b[0]);
+    const[f,g,key,path]=open.shift();
+    if(vis.has(key))continue;
+    vis.add(key);
+    const[r,c]=path[path.length-1];
+    if(r===GOAL[0]&&c===GOAL[1])return{path,time:performance.now()-t0};
+    for(const[,nr,nc] of validNbrs(r,c)){
+      const nk=`${nr},${nc}`;
+      if(!vis.has(nk)){
+        const ng=g+1;
+        open.push([ng+h(nr,nc),ng,nk,[...path,[nr,nc]]]);
+      }
+    }
+  }
+  return{path:null,time:performance.now()-t0};
+}
+
+// ══════════════════════════════════════════════
+// DIJKSTRA
+// ══════════════════════════════════════════════
+function runDijkstra(){
+  const t0=performance.now();
+  const dist={'0,0':0};
+  const prev={};
+  const pq=[[0,[0,0]]];
+  while(pq.length){
+    pq.sort((a,b)=>a[0]-b[0]);
+    const[d,[r,c]]=pq.shift();
+    const k=`${r},${c}`;
+    if(d>( dist[k]??Infinity))continue;
+    if(r===GOAL[0]&&c===GOAL[1])break;
+    for(const[,nr,nc] of validNbrs(r,c)){
+      const nk=`${nr},${nc}`;
+      const nd=d+1;
+      if(nd<(dist[nk]??Infinity)){
+        dist[nk]=nd;prev[nk]=k;
+        pq.push([nd,[nr,nc]]);
+      }
+    }
+  }
+  let path=[],node=`${GOAL[0]},${GOAL[1]}`;
+  while(node){path.unshift(node.split(',').map(Number));node=prev[node];}
+  return{path:path[0]&&path[0][0]===0&&path[0][1]===0?path:null,
+         time:performance.now()-t0};
+}
+
+// ══════════════════════════════════════════════
+// GROVER Q-LEARNING (browser sim)
+// ══════════════════════════════════════════════
+let Q={},solverRunning=false;
+let lastGroverPath=null,lastAstarPath=null,lastDijkstraPath=null;
+let lastGroverTime=0,lastAstarTime=0,lastDijkstraTime=0;
+let rewardsLog=[];
+
+function getQ(r,c){
+  const k=`${r},${c}`;
+  if(!Q[k])Q[k]=[0,0,0,0];
+  return Q[k];
+}
+
+function runGroverQL(episodes,alpha,gamma,gIters,onDone){
+  const t0=performance.now();
+  let ep=0,bestRew=-Infinity,bestPath=null;
+  const exploreEp=Math.floor(episodes*0.65);
+  rewardsLog=[];
+
+  const cons=document.getElementById('main-console');
+  const log=(m,cls='')=>{
+    cons.innerHTML+=cls?`<span class="${cls}">${m}</span>\n`:m+'\n';
+    cons.scrollTop=cons.scrollHeight;
+  };
+  log(`[grover] episodes=${episodes} α=${alpha} γ=${gamma} iters=${gIters}`,'dim');
+
+  function tick(){
+    if(!solverRunning)return;
+    if(ep>=episodes){
+      const elapsed=performance.now()-t0;
+      log(`[done] elapsed=${elapsed.toFixed(1)}ms | best_path=${bestPath?bestPath.length-1:'?'} steps`,'hi');
+      onDone(bestPath,elapsed);
+      return;
+    }
+
+    let state=[0,0],total=0,path=[[0,0]];
+    const visited=new Set(['0,0']);
+    let done=false,steps=0;
+    const explore=ep<exploreEp;
+
+    while(!done&&steps<ROWS*COLS*2){
+      const[r,c]=state;
+      const nbrs=validNbrs(r,c);
+      if(!nbrs.length)break;
+      const qv=getQ(r,c).slice();
+      nbrs.forEach(([i])=>{});
+      const validSet=new Set(nbrs.map(([i])=>i));
+      for(let i=0;i<4;i++)if(!validSet.has(i))qv[i]=-9999;
+
+      const[action,probs]=groverSelect(qv,explore,gIters);
+      let finalA=action;
+      if(!validSet.has(action)){
+        const pick=nbrs[Math.floor(Math.random()*nbrs.length)];
+        finalA=pick[0];
+      }
+      const[,nr,nc]=nbrs.find(([i])=>i===finalA)||nbrs[0];
+      const nk=`${nr},${nc}`;
+      const nextState=[nr,nc];
+      let reward=nr===GOAL[0]&&nc===GOAL[1]?100:(visited.has(nk)?-2:-0.5);
+      if(nr===GOAL[0]&&nc===GOAL[1])done=true;
+      visited.add(nk);
+      const nq=getQ(nr,nc);
+      const td=reward+gamma*Math.max(...nq)-getQ(r,c)[finalA];
+      getQ(r,c)[finalA]+=alpha*td;
+      state=nextState;path.push(nextState);total+=reward;steps++;
+    }
+
+    rewardsLog.push(total);
+    if(total>bestRew&&done){bestRew=total;bestPath=path.slice();}
+
+    const avg50=rewardsLog.slice(-50).reduce((a,b)=>a+b,0)/Math.min(50,rewardsLog.length);
+    const sr=rewardsLog.slice(-50).filter(r=>r>0).length/Math.min(50,rewardsLog.length);
+    document.getElementById('st-ep').textContent=ep+1;
+    document.getElementById('st-rw').textContent=avg50.toFixed(2);
+    document.getElementById('st-best').textContent=bestRew.toFixed(1);
+    document.getElementById('st-sr').textContent=(sr*100).toFixed(0)+'%';
+    document.getElementById('prog-bar').style.width=((ep+1)/episodes*100)+'%';
+    if(ep%10===0)updateRewardChart();
+    ep++;
+    setTimeout(tick,1);
+  }
+  tick();
+}
+
+// ══════════════════════════════════════════════
+// MAZE DRAWING
+// ══════════════════════════════════════════════
+function drawMaze(canvasId,path,pathColor,cellSize){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas)return;
+  const cs=cellSize||Math.floor(canvas.width/COLS);
+  const ctx=canvas.getContext('2d');
+  canvas.width=COLS*cs; canvas.height=ROWS*cs;
+  ctx.fillStyle='#04060e';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      ctx.fillStyle=MAZE[r][c]===1?'#1c2e45':'#07090f';
+      ctx.fillRect(c*cs,r*cs,cs,cs);
+      if(MAZE[r][c]===0){
+        ctx.strokeStyle='#0d1525';ctx.lineWidth=0.3;
+        ctx.strokeRect(c*cs,r*cs,cs,cs);
+      }
+    }
+  }
+  // start / goal
+  ctx.fillStyle='rgba(0,255,157,0.85)';
+  ctx.fillRect(START[1]*cs,START[0]*cs,cs,cs);
+  ctx.fillStyle='rgba(255,77,109,0.85)';
+  ctx.fillRect(GOAL[1]*cs,GOAL[0]*cs,cs,cs);
+
+  if(path&&path.length>1){
+    for(let i=0;i<path.length;i++){
+      const[r,c]=path[i];
+      const alpha=0.15+0.65*(i/path.length);
+      ctx.fillStyle=hexAlpha(pathColor,alpha);
+      ctx.fillRect(c*cs,r*cs,cs,cs);
+    }
+    ctx.beginPath();
+    path.forEach(([r,c],i)=>{
+      const x=c*cs+cs/2,y=r*cs+cs/2;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.strokeStyle=pathColor;ctx.lineWidth=Math.max(1,cs*0.18);
+    ctx.lineJoin='round';ctx.stroke();
+    const[fr,fc]=path[path.length-1];
+    ctx.fillStyle='#ff4d6d';
+    ctx.beginPath();ctx.arc(fc*cs+cs/2,fr*cs+cs/2,cs*0.35,0,Math.PI*2);ctx.fill();
+  }
+  // labels
+  if(cs>=12){
+    ctx.fillStyle='#04060e';ctx.font=`bold ${Math.max(8,cs*0.45)}px JetBrains Mono`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('S',START[1]*cs+cs/2,START[0]*cs+cs/2);
+    ctx.fillText('G',GOAL[1]*cs+cs/2,GOAL[0]*cs+cs/2);
+  }
+}
+
+function hexAlpha(hex,a){
+  const r=parseInt(hex.slice(1,3),16);
+  const g=parseInt(hex.slice(3,5),16);
+  const b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ══════════════════════════════════════════════
+// ANIMATE PATH
+// ══════════════════════════════════════════════
+function animatePath(){
+  const algo=document.getElementById('sel-algo').value;
+  const path=algo==='astar'?lastAstarPath:algo==='dijkstra'?lastDijkstraPath:lastGroverPath;
+  if(!path){alert('Run the algorithm first.');return;}
+  const col=algo==='astar'?'#ffb830':algo==='dijkstra'?'#b06aff':'#00d4ff';
+  const cs=Math.floor(400/COLS);
+  let step=0;
+  const speed=+document.getElementById('sel-speed').value;
+  const tick=()=>{
+    if(step>path.length)return;
+    drawMaze('maze-canvas',path.slice(0,step),col,cs);
+    step+=Math.max(1,Math.floor(1));
+    setTimeout(tick,speed);
+  };
+  tick();
+}
+
+// ══════════════════════════════════════════════
+// REWARD CHART
+// ══════════════════════════════════════════════
+let rwChart=null;
+function updateRewardChart(){
+  const ctx=document.getElementById('reward-chart').getContext('2d');
+  const labs=rewardsLog.map((_,i)=>i+1);
+  const roll=rewardsLog.map((_,i)=>
+    rewardsLog.slice(Math.max(0,i-19),i+1).reduce((a,b)=>a+b,0)/Math.min(20,i+1));
+  const opts={animation:false,scales:{
+    x:{ticks:{color:'#4a6a80',font:{family:'JetBrains Mono',size:9}},grid:{color:'#162030'}},
+    y:{ticks:{color:'#4a6a80',font:{family:'JetBrains Mono',size:9}},grid:{color:'#162030'}}
+  },plugins:{legend:{labels:{color:'#4a6a80',font:{family:'JetBrains Mono',size:9}}}}};
+  if(!rwChart){
+    rwChart=new Chart(ctx,{type:'line',data:{labels:labs,datasets:[
+      {label:'reward',data:rewardsLog,borderColor:'rgba(0,212,255,.25)',borderWidth:1,pointRadius:0},
+      {label:'20-avg',data:roll,borderColor:'#00d4ff',borderWidth:2,pointRadius:0,tension:.4}
+    ]},options:opts});
+  }else{
+    rwChart.data.labels=labs;
+    rwChart.data.datasets[0].data=rewardsLog;
+    rwChart.data.datasets[1].data=roll;
+    rwChart.update('none');
+  }
+}
+
+// ══════════════════════════════════════════════
+// RUN SOLVER
+// ══════════════════════════════════════════════
+function runSolver(){
+  solverRunning=true;
+  Q={};rewardsLog=[];
+  document.getElementById('btn-anim').disabled=true;
+  const algo=document.getElementById('sel-algo').value;
+  const eps=+document.getElementById('inp-ep').value;
+  const alpha=+document.getElementById('inp-alpha').value/100;
+  const gamma=+document.getElementById('inp-gamma').value/100;
+  const gi=+document.getElementById('inp-gi').value;
+  const cs=Math.floor(400/COLS);
+  drawMaze('maze-canvas',null,'#00d4ff',cs);
+
+  if(algo==='grover'||algo==='all'){
+    runGroverQL(eps,alpha,gamma,gi,(path,t)=>{
+      lastGroverPath=path;lastGroverTime=t;
+      if(path){
+        drawMaze('maze-canvas',path,'#00d4ff',cs);
+        document.getElementById('st-steps').textContent=path.length-1;
+        document.getElementById('st-time').textContent=t.toFixed(1);
+      }
+      document.getElementById('btn-anim').disabled=false;
+      if(algo==='all'){
+        const ar=runAstar();lastAstarPath=ar.path;lastAstarTime=ar.time;
+        const dr=runDijkstra();lastDijkstraPath=dr.path;lastDijkstraTime=dr.time;
+        updateTimingCharts();
+      }
+      solverRunning=false;
+    });
+  } else if(algo==='astar'){
+    const{path,time}=runAstar();
+    lastAstarPath=path;lastAstarTime=time;
+    drawMaze('maze-canvas',path,'#ffb830',cs);
+    document.getElementById('st-steps').textContent=path?path.length-1:0;
+    document.getElementById('st-time').textContent=time.toFixed(3);
+    document.getElementById('btn-anim').disabled=false;
+    solverRunning=false;
+  } else if(algo==='dijkstra'){
+    const{path,time}=runDijkstra();
+    lastDijkstraPath=path;lastDijkstraTime=time;
+    drawMaze('maze-canvas',path,'#b06aff',cs);
+    document.getElementById('st-steps').textContent=path?path.length-1:0;
+    document.getElementById('st-time').textContent=time.toFixed(3);
+    document.getElementById('btn-anim').disabled=false;
+    solverRunning=false;
+  }
+}
+
+function resetAll(){
+  solverRunning=false;Q={};rewardsLog=[];
+  lastGroverPath=lastAstarPath=lastDijkstraPath=null;
+  const cs=Math.floor(400/COLS);
+  drawMaze('maze-canvas',null,'#00d4ff',cs);
+  document.getElementById('prog-bar').style.width='0%';
+  document.getElementById('main-console').textContent='Reset.';
+  document.getElementById('btn-anim').disabled=true;
+  ['st-ep','st-rw','st-best','st-steps','st-time','st-sr']
+    .forEach(id=>document.getElementById(id).textContent='—');
+}
+
+// ══════════════════════════════════════════════
+// RUN ALL + COMPARE
+// ══════════════════════════════════════════════
+function runAllAndCompare(){
+  solverRunning=true;
+  Q={};rewardsLog=[];
+  const eps=400,alpha=0.07,gamma=0.95,gi=1;
+  document.getElementById('cmp-prog').style.width='20%';
+  runGroverQL(eps,alpha,gamma,gi,(gpath,gt)=>{
+    lastGroverPath=gpath;lastGroverTime=gt;
+    document.getElementById('cmp-prog').style.width='70%';
+    const ar=runAstar();lastAstarPath=ar.path;lastAstarTime=ar.time;
+    const dr=runDijkstra();lastDijkstraPath=dr.path;lastDijkstraTime=dr.time;
+    document.getElementById('cmp-prog').style.width='100%';
+    const cqCs=Math.floor(300/COLS);
+    drawMaze('cmp-q',gpath,'#00d4ff',cqCs);
+    drawMaze('cmp-a',ar.path,'#ffb830',cqCs);
+    drawMaze('cmp-d',dr.path,'#b06aff',cqCs);
+    document.getElementById('cq-steps').textContent=gpath?gpath.length-1:0;
+    document.getElementById('cq-time').textContent=gt.toFixed(1)+'ms';
+    document.getElementById('ca-steps').textContent=ar.path?ar.path.length-1:0;
+    document.getElementById('ca-time').textContent=ar.time.toFixed(3)+'ms';
+    document.getElementById('cd-steps').textContent=dr.path?dr.path.length-1:0;
+    document.getElementById('cd-time').textContent=dr.time.toFixed(3)+'ms';
+    updateTimingCharts();
+    solverRunning=false;
+  });
+}
+
+// ══════════════════════════════════════════════
+// TIMING CHARTS
+// ══════════════════════════════════════════════
+let tchart=null,schart=null;
+function updateTimingCharts(){
+  const algos=['Grover Q-RL','A*','Dijkstra'];
+  const times=[lastGroverTime,lastAstarTime,lastDijkstraTime];
+  const steps=[
+    lastGroverPath?lastGroverPath.length-1:0,
+    lastAstarPath?lastAstarPath.length-1:0,
+    lastDijkstraPath?lastDijkstraPath.length-1:0,
+  ];
+  const colors=['#00d4ff','#ffb830','#b06aff'];
+  const opts={scales:{
+    x:{ticks:{color:'#4a6a80',font:{family:'JetBrains Mono',size:10}},grid:{color:'#162030'}},
+    y:{ticks:{color:'#4a6a80',font:{family:'JetBrains Mono',size:10}},grid:{color:'#162030'}}
+  },plugins:{legend:{labels:{color:'#4a6a80',font:{family:'JetBrains Mono',size:10}}}}};
+
+  const tc=document.getElementById('time-chart').getContext('2d');
+  if(tchart)tchart.destroy();
+  tchart=new Chart(tc,{type:'bar',data:{labels:algos,datasets:[{
+    label:'Time (ms)',data:times,
+    backgroundColor:colors.map(c=>c+'aa'),borderColor:colors,borderWidth:1
+  }]},options:opts});
+
+  const sc=document.getElementById('steps-chart').getContext('2d');
+  if(schart)schart.destroy();
+  schart=new Chart(sc,{type:'bar',data:{labels:algos,datasets:[{
+    label:'Path steps',data:steps,
+    backgroundColor:colors.map(c=>c+'aa'),borderColor:colors,borderWidth:1
+  }]},options:opts});
+
+  // table
+  document.getElementById('cmp-table').innerHTML=`
+<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.72rem">
+<tr style="color:var(--q);border-bottom:1px solid var(--bord)">
+  <th style="text-align:left;padding:.4rem .6rem">Algorithm</th>
+  <th style="padding:.4rem .6rem">Path steps</th>
+  <th style="padding:.4rem .6rem">Time (ms)</th>
+  <th style="padding:.4rem .6rem">Type</th>
+  <th style="padding:.4rem .6rem">Optimal?</th>
+</tr>
+${[
+  ['Grover Q-RL',steps[0],times[0].toFixed(3),'Quantum RL','Near-optimal','var(--q)'],
+  ['A*',         steps[1],times[1].toFixed(4),'Classical', 'Yes','var(--a)'],
+  ['Dijkstra',   steps[2],times[2].toFixed(4),'Classical', 'Yes','var(--d)'],
+].map(([n,s,t,type,opt,c])=>`
+<tr style="border-bottom:1px solid var(--bord);color:${c}">
+  <td style="padding:.4rem .6rem;font-weight:600">${n}</td>
+  <td style="padding:.4rem .6rem;text-align:center">${s}</td>
+  <td style="padding:.4rem .6rem;text-align:center">${t}</td>
+  <td style="padding:.4rem .6rem;text-align:center;color:var(--muted)">${type}</td>
+  <td style="padding:.4rem .6rem;text-align:center;color:var(--muted)">${opt}</td>
+</tr>`).join('')}
+</table>`;
+}
+
+// ══════════════════════════════════════════════
+// QCA CIRCUIT DRAWING
+// ══════════════════════════════════════════════
+function drawQCA(){
+  const bestA=1;
+
+  const canvas=document.getElementById('qca-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  ctx.fillStyle='#04060e';ctx.fillRect(0,0,W,H);
+
+  // wires
+  const wireY=[H*0.38,H*0.65];
+  const wColors=['#00d4ff','#00ff9d'];
+  wireY.forEach((y,q)=>{
+    ctx.strokeStyle='#162030';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(30,y);ctx.lineTo(W-20,y);ctx.stroke();
+    ctx.fillStyle=wColors[q];ctx.font='11px JetBrains Mono';
+    ctx.textAlign='right';ctx.fillText(`q${q}`,26,y+4);
+  });
+
+  function gateBox(x,ys,label,fc,ec,w=36,h=28){
+    ys.forEach(y=>{
+      ctx.fillStyle=fc;ctx.strokeStyle=ec;ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.roundRect(x-w/2,y-h/2,w,h,4);ctx.fill();ctx.stroke();
+      ctx.fillStyle=ec;ctx.font='bold 10px JetBrains Mono';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(label,x,y);
+    });
+  }
+
+  function ctrlLine(x,y0,y1,col='#ffb830'){
+    ctx.strokeStyle=col;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y0,4,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=col;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(x-5,y1-5);ctx.lineTo(x+5,y1+5);
+    ctx.moveTo(x+5,y1-5);ctx.lineTo(x-5,y1+5);ctx.stroke();
+  }
+
+  function secLabel(x,label,col){
+    ctx.fillStyle=col;ctx.font='9px JetBrains Mono';
+    ctx.textAlign='center';ctx.fillText(label,x,18);
+    ctx.strokeStyle=col;ctx.lineWidth=0.4;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(x-45,24);ctx.lineTo(x+45,24);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const bits=[(bestA>>1)&1,bestA&1];
+
+  // |0⟩ labels
+  secLabel(55,'|0⟩ init','#4a6a80');
+  ctx.fillStyle='#4a6a80';ctx.font='11px JetBrains Mono';ctx.textAlign='center';
+  wireY.forEach(y=>ctx.fillText('|0⟩',55,y+4));
+
+  // H gates
+  secLabel(130,'H ⊗ H','#00d4ff');
+  gateBox(130,wireY,'H','#06182a','#00d4ff');
+
+  // Oracle
+  secLabel(250,`oracle\na=${bestA} ${ALBL[bestA]}`,'#ff4d6d');
+  wireY.forEach((y,q)=>{if(bits[q]===0)gateBox(200,[y],'X','#1a060a','#ff4d6d');});
+  ctrlLine(250,wireY[1],wireY[0],'#ff4d6d');
+  wireY.forEach((y,q)=>{if(bits[q]===0)gateBox(300,[y],'X','#1a060a','#ff4d6d');});
+
+  // Diffusion
+  secLabel(430,'diffusion\n2|ψ⟩⟨ψ|−I','#00ff9d');
+  gateBox(380,wireY,'H','#06180e','#00ff9d');
+  gateBox(420,wireY,'X','#06180e','#00ff9d');
+  ctrlLine(460,wireY[1],wireY[0],'#00ff9d');
+  gateBox(500,wireY,'X','#06180e','#00ff9d');
+  gateBox(540,wireY,'H','#06180e','#00ff9d');
+
+  // Measure
+  secLabel(650,'measure','#ffb830');
+  wireY.forEach(y=>{
+    ctx.fillStyle='#140e00';ctx.strokeStyle='#ffb830';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.roundRect(625,y-16,50,32,4);ctx.fill();ctx.stroke();
+    ctx.strokeStyle='#ffb830';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(650,y+4,10,Math.PI,0);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(650,y+4);ctx.lineTo(660,y-8);
+    ctx.strokeStyle='#ffb830';ctx.stroke();
+  });
+
+  // qubit outcome labels
+  ctx.fillStyle='#ffb830';ctx.font='9px JetBrains Mono';ctx.textAlign='left';
+  ctx.fillText(`→ bit${0}`,680,wireY[0]+4);
+  ctx.fillText(`→ bit${1}`,680,wireY[1]+4);
+
+  // title
+  ctx.fillStyle='#cce4f0';ctx.font='11px JetBrains Mono';ctx.textAlign='center';
+  ctx.fillText(`Grover circuit — best action a=${bestA} (${ALBL[bestA]})  |  2 qubits  |  1 iteration`,W/2,H-8);
+}
+
+// ══════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════
+function switchTab(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  event.target.classList.add('active');
+  if(id==='qca')drawQCA();
+}
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+drawMaze('maze-canvas',null,'#00d4ff',Math.floor(400/COLS));
+</script>
+</body>
+</html>
